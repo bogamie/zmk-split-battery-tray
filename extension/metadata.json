@@ -4,5 +4,6 @@
     "description": "Stacked left/right battery percentages for any ZMK split keyboard in dongle mode, read directly from a custom vendor HID interface added by the firmware patch.",
     "shell-version": ["45", "46", "47", "48"],
     "url": "https://github.com/bogamie/zmk-split-battery-tray",
-    "version-name": "0.1.0"
+    "version-name": "0.1.0",
+    "settings-schema": "org.gnome.shell.extensions.zmk-split-battery"
 }

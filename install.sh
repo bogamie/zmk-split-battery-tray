@@ -12,6 +12,9 @@ sudo install -m 0644 "$REPO_DIR/udev/99-zmk-split-battery.rules" /etc/udev/rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 
+echo ">> extension: compile gsettings schema"
+glib-compile-schemas "$REPO_DIR/extension/schemas"
+
 echo ">> extension: copy to $EXT_DIR"
 mkdir -p "$EXT_DIR"
 cp -r "$REPO_DIR/extension/." "$EXT_DIR/"
@@ -23,6 +26,9 @@ echo
 echo "Done. Reload GNOME Shell to pick up the new extension:"
 echo "  - X11: press Alt+F2, type 'r', press Enter"
 echo "  - Wayland: log out and log back in"
+echo
+echo "Tweak settings:"
+echo "  gnome-extensions prefs $UUID"
 echo
 echo "Status:        gnome-extensions info $UUID"
 echo "Live logs:     journalctl --user -f /usr/bin/gnome-shell"

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <schema id="org.gnome.shell.extensions.zmk-split-battery"
+            path="/org/gnome/shell/extensions/zmk-split-battery/">
+
+        <key name="swap-lr" type="b">
+            <default>false</default>
+            <summary>Swap left and right halves</summary>
+            <description>
+                ZMK assigns peripheral slot indices in pairing order,
+                which is not guaranteed to map to physical left/right.
+                Toggle this if your halves appear reversed in the panel.
+            </description>
+        </key>
+
+        <key name="hide-when-disconnected" type="b">
+            <default>true</default>
+            <summary>Hide indicator while keyboard is disconnected</summary>
+            <description>
+                When enabled, the panel indicator disappears entirely
+                while no compatible dongle is found. When disabled, it
+                stays visible with placeholder values.
+            </description>
+        </key>
+
+    </schema>
+</schemalist>

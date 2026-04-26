@@ -21,10 +21,15 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
+// Make Gio.File.load_contents_async() return a Promise so the discovery
+// path can stay non-blocking (sync file IO is flagged by shexli /
+// extensions.gnome.org reviewers as it stalls the GNOME Shell main loop).
+Gio._promisify(Gio.File.prototype, "load_contents_async");
+
 // 0x1d50:0x615e is OpenMoko's allocation for ZMK Project — many ZMK
 // keyboards (totem, corne, sofle, lily58, …) share this VID:PID, so
-// this extension works across them out of the box. Override here if
-// your dongle uses different IDs.
+// this extension works across them out of the box. Edit here if your
+// dongle uses different IDs.
 const VENDOR_ID = 0x1d50;
 const PRODUCT_ID = 0x615e;
 const REPORT_ID = 0x01;
@@ -52,10 +57,11 @@ const expectedHidId = () => {
 
 const SplitBatteryIndicator = GObject.registerClass(
     class SplitBatteryIndicator extends PanelMenu.Button {
-        _init() {
+        _init(settings) {
             // menuAlignment 0.5 => popup centered under the indicator
             super._init(0.5, "ZMK Split Battery");
 
+            this._settings = settings;
             this.add_style_class_name("split-battery-indicator");
 
             const box = new St.BoxLayout({
@@ -143,15 +149,28 @@ const SplitBatteryIndicator = GObject.registerClass(
             this._retryId = 0;
             this._destroyed = false;
 
-            // Stay hidden until a dongle is actually found, so the
-            // panel isn't cluttered when the keyboard is unplugged.
-            this.visible = false;
+            this._settingsHandlerId = this._settings.connect(
+                "changed",
+                () => this._applyVisibility(),
+            );
+
+            // Initial visibility: respect the "hide when disconnected"
+            // setting until a dongle is actually opened.
+            this._connected = false;
+            this._applyVisibility();
 
             this._findAndOpen();
         }
 
         _setStatus(text) {
             this._headerItem.label.set_text(text);
+        }
+
+        _applyVisibility() {
+            const hideOnDisconnect = this._settings.get_boolean(
+                "hide-when-disconnected",
+            );
+            this.visible = this._connected || !hideOnDisconnect;
         }
 
         _refresh() {
@@ -163,7 +182,15 @@ const SplitBatteryIndicator = GObject.registerClass(
             this._rightMenuIcon.set_icon_name(menuIconForLevel(this._right));
         }
 
-        _findHidraw() {
+        async _loadBytes(path) {
+            const file = Gio.File.new_for_path(path);
+            const [contents] = await file.load_contents_async(
+                this._cancellable,
+            );
+            return contents;
+        }
+
+        async _findHidraw() {
             const target = expectedHidId();
             const dir = Gio.File.new_for_path("/sys/class/hidraw");
             let enumerator;
@@ -181,26 +208,26 @@ const SplitBatteryIndicator = GObject.registerClass(
                 const name = info.get_name();
                 if (!name.startsWith("hidraw")) continue;
 
-                const ueventPath = `/sys/class/hidraw/${name}/device/uevent`;
-                let ok, ueventBytes;
+                let uevent;
                 try {
-                    [ok, ueventBytes] = GLib.file_get_contents(ueventPath);
+                    const bytes = await this._loadBytes(
+                        `/sys/class/hidraw/${name}/device/uevent`,
+                    );
+                    uevent = new TextDecoder().decode(bytes);
                 } catch {
                     continue;
                 }
-                if (!ok) continue;
-                const uevent = new TextDecoder().decode(ueventBytes);
                 if (!uevent.includes(target)) continue;
 
-                const descPath = `/sys/class/hidraw/${name}/device/report_descriptor`;
-                let ok2, desc;
+                let desc;
                 try {
-                    [ok2, desc] = GLib.file_get_contents(descPath);
+                    desc = await this._loadBytes(
+                        `/sys/class/hidraw/${name}/device/report_descriptor`,
+                    );
                 } catch {
                     continue;
                 }
-                if (!ok2 || desc.length < VENDOR_USAGE_PAGE_PREFIX.length)
-                    continue;
+                if (desc.length < VENDOR_USAGE_PAGE_PREFIX.length) continue;
                 const matches = VENDOR_USAGE_PAGE_PREFIX.every(
                     (b, i) => desc[i] === b,
                 );
@@ -209,9 +236,15 @@ const SplitBatteryIndicator = GObject.registerClass(
                     const raw = nameMatch ? nameMatch[1].trim() : "";
                     // Strip the boilerplate "ZMK Project " prefix that
                     // ZMK adds to the USB iProduct string, so the menu
-                    // header just reads e.g. "TOTEM".
+                    // header just reads e.g. "TOTEM". Cap length to
+                    // avoid a hostile USB descriptor blowing up the
+                    // menu layout.
                     const stripped = raw.replace(/^ZMK Project\s+/i, "");
-                    const deviceName = stripped || raw || "ZMK keyboard";
+                    const deviceName = (
+                        stripped ||
+                        raw ||
+                        "ZMK keyboard"
+                    ).slice(0, 64);
                     return { path: `/dev/${name}`, deviceName };
                 }
             }
@@ -231,12 +264,14 @@ const SplitBatteryIndicator = GObject.registerClass(
             );
         }
 
-        _findAndOpen() {
+        async _findAndOpen() {
             if (this._destroyed) return;
-            const found = this._findHidraw();
+            const found = await this._findHidraw();
+            if (this._destroyed) return;
             if (!found) {
                 this._setStatus("Searching for dongle…");
-                this.visible = false;
+                this._connected = false;
+                this._applyVisibility();
                 this._scheduleRetry();
                 return;
             }
@@ -249,12 +284,14 @@ const SplitBatteryIndicator = GObject.registerClass(
                     `zmk-split-battery: open ${path} failed: ${e}`,
                 );
                 this._setStatus(`Open failed: ${e.message}`);
-                this.visible = false;
+                this._connected = false;
+                this._applyVisibility();
                 this._scheduleRetry();
                 return;
             }
             this._setStatus(deviceName);
-            this.visible = true;
+            this._connected = true;
+            this._applyVisibility();
             this._readNext();
         }
 
@@ -282,21 +319,26 @@ const SplitBatteryIndicator = GObject.registerClass(
                         }
                         this._closeStream();
                         this._setStatus("Disconnected, retrying…");
-                        this.visible = false;
+                        this._connected = false;
+                        this._applyVisibility();
                         this._scheduleRetry();
                         return;
                     }
                     if (!bytes || bytes.get_size() === 0) {
                         this._closeStream();
                         this._setStatus("Disconnected, retrying…");
-                        this.visible = false;
+                        this._connected = false;
+                        this._applyVisibility();
                         this._scheduleRetry();
                         return;
                     }
                     const data = bytes.get_data();
                     if (data.length >= REPORT_LEN && data[0] === REPORT_ID) {
-                        this._left = data[1];
-                        this._right = data[2];
+                        const a = data[1];
+                        const b = data[2];
+                        const swap = this._settings.get_boolean("swap-lr");
+                        this._left = swap ? b : a;
+                        this._right = swap ? a : b;
                         this._refresh();
                     }
                     this._readNext();
@@ -321,6 +363,10 @@ const SplitBatteryIndicator = GObject.registerClass(
                 GLib.Source.remove(this._retryId);
                 this._retryId = 0;
             }
+            if (this._settingsHandlerId) {
+                this._settings.disconnect(this._settingsHandlerId);
+                this._settingsHandlerId = 0;
+            }
             this._cancellable.cancel();
             this._closeStream();
             super.destroy();
@@ -330,12 +376,14 @@ const SplitBatteryIndicator = GObject.registerClass(
 
 export default class SplitBatteryExtension extends Extension {
     enable() {
-        this._indicator = new SplitBatteryIndicator();
+        this._settings = this.getSettings();
+        this._indicator = new SplitBatteryIndicator(this._settings);
         Main.panel.addToStatusArea(this.uuid, this._indicator);
     }
 
     disable() {
         this._indicator?.destroy();
         this._indicator = null;
+        this._settings = null;
     }
 }

@@ -2,7 +2,7 @@
 
 A GNOME Shell top-bar indicator that shows the **left** and **right**
 battery percentages of a [ZMK][zmk] split keyboard used in dongle
-mode — modeled after macOS multi-device battery menulets.
+mode.
 
 The dongle's stock USB-HID interface only carries keyboard reports, so
 this project ships **two pieces** that work together:
@@ -74,21 +74,16 @@ and don't fit the dongle workflow. This repo fills that gap.
                                               └─────────────┘
 ```
 
-The new HID interface emits a 3-byte input report whenever a peripheral
-battery event fires inside the firmware:
-
-| byte | meaning                                            |
-| ---- | -------------------------------------------------- |
-| 0    | report id (always `0x01`)                          |
-| 1    | left battery percent — `0..100`, `0xFF` = unknown  |
-| 2    | right battery percent — `0..100`, `0xFF` = unknown |
-
-The extension finds the right `/dev/hidrawN` by scanning each HID
-interface's `report_descriptor` for the Vendor Usage Page prefix
-(`0x06 0x00 0xFF`) — no hardcoded path, survives device replug, and
-lets multiple keyboards coexist.
+Report format and discovery logic live in [`DESIGN.md`](./DESIGN.md).
 
 ## Install
+
+Clone this repo first — both steps below run from its root:
+
+```sh
+git clone https://github.com/bogamie/zmk-split-battery-tray.git
+cd zmk-split-battery-tray
+```
 
 ### Firmware patch
 
@@ -127,43 +122,37 @@ Commit, push, let GitHub Actions build, flash dongle + halves.
 ./install.sh
 ```
 
-That installs the udev rule, copies the extension into
+That installs the udev rule, compiles the GSettings schema, copies the
+extension into
 `~/.local/share/gnome-shell/extensions/zmk-split-battery@bogamie.github.io/`,
 and enables it. Reload GNOME Shell:
 
 - **X11**: press `Alt+F2`, type `r`, hit Enter.
 - **Wayland**: log out and back in.
 
-## Repo layout
+## Settings
 
-```
-.
-├── README.md
-├── DESIGN.md                       — architecture notes
-├── LICENSE                         — MIT
-├── install.sh                      — one-shot setup
-├── extension/                      — GNOME Shell extension
-│   ├── metadata.json
-│   ├── extension.js
-│   └── stylesheet.css
-├── firmware/                       — files to drop into your zmk-config
-│   ├── battery_hid.c
-│   └── CMakeLists.txt
-├── udev/
-│   └── 99-zmk-split-battery.rules
-└── docs/                           — screenshots
-    ├── panel.png
-    └── menu.png
+The two flags users typically need are exposed through the standard
+GNOME extension preferences UI. Open it from the Extensions app, or
+run:
+
+```sh
+gnome-extensions prefs zmk-split-battery@bogamie.github.io
 ```
 
-## Customization
+| Setting                  | Default | What it does                                                                                                |
+| ------------------------ | ------- | ----------------------------------------------------------------------------------------------------------- |
+| Swap left and right      | off     | Flip if your halves appear reversed. ZMK assigns peripheral slot indices in pairing order, not by position. |
+| Hide when disconnected   | on      | Remove the panel indicator entirely while the keyboard is unplugged.                                        |
 
-| Want to…                                  | Where                                                                              |
-| ----------------------------------------- | ---------------------------------------------------------------------------------- |
-| Match a different USB VID/PID             | `extension/extension.js` (`VENDOR_ID` / `PRODUCT_ID`) and the udev rule            |
-| Change the panel font size                | `extension/stylesheet.css` → `.split-battery-letter` / `.split-battery-pct` font-size |
-| Change the menu device-name               | iProduct in firmware (`CONFIG_USB_DEVICE_PRODUCT`), or strip prefix in `extension.js` |
-| Lower first-display latency               | `CONFIG_ZMK_BATTERY_REPORT_INTERVAL=30` in dongle `.conf`                          |
+## Other tweaks (require code edit)
+
+| Want to…                          | Where                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------ |
+| Match a different USB VID/PID     | `extension/extension.js` (`VENDOR_ID` / `PRODUCT_ID`) and the udev rule              |
+| Change the panel font size        | `extension/stylesheet.css` → `.split-battery-letter` / `.split-battery-pct` font-size |
+| Change the menu device-name       | iProduct in firmware (`CONFIG_USB_DEVICE_PRODUCT`), or strip prefix in `extension.js` |
+| Lower first-display latency       | `CONFIG_ZMK_BATTERY_REPORT_INTERVAL=30` in dongle `.conf`                            |
 
 ## Troubleshooting
 
