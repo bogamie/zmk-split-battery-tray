@@ -1,0 +1,13 @@
+# Allow the logged-in user to read/write the ZMK totem dongle's hidraw
+# nodes. The dongle exposes multiple HID interfaces; this rule covers
+# all of them, but the battery-tray daemon picks the vendor-defined one
+# (Vendor Usage Page 0xFF00) by inspecting the report descriptor.
+#
+# Install:
+#   sudo cp 99-zmk-totem.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger
+#
+# TAG+="uaccess" makes systemd-logind grant ACLs to the active session
+# user, which is the modern alternative to plain group permissions.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="615e", MODE="0660", GROUP="plugdev", TAG+="uaccess"

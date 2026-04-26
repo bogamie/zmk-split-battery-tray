@@ -1,0 +1,40 @@
+/* macOS-style stacked two-line battery indicator. */
+
+.split-battery-box {
+    spacing: 0;
+}
+
+.split-battery-row {
+    spacing: 4px;
+}
+
+.split-battery-letter,
+.split-battery-pct {
+    font-size: 8pt;
+    font-feature-settings: "tnum" 1;
+}
+
+/* Force L and R into the same column width so the percentages below
+   line up vertically regardless of glyph metrics. */
+.split-battery-letter {
+    min-width: 9px;
+}
+
+/* Undo the dimming GNOME Shell applies to non-reactive (insensitive)
+   menu items, so our read-only rows render in the normal text color. */
+.split-battery-info-item,
+.split-battery-info-item:insensitive {
+    color: inherit;
+}
+
+/* Menu item: [icon] [prefix label] [percent]. Fixed prefix width so
+   "Left" and "Right" align across rows, putting the percent column at
+   the same x. */
+.split-battery-menu-icon {
+    icon-size: 16px;
+    padding-right: 8px;
+}
+
+.split-battery-menu-prefix {
+    min-width: 56px;
+}

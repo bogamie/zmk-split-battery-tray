@@ -1,0 +1,8 @@
+{
+    "uuid": "zmk-split-battery@bogamie.github.io",
+    "name": "ZMK Split Battery",
+    "description": "Stacked left/right battery percentages for any ZMK split keyboard in dongle mode, read directly from a custom vendor HID interface added by the firmware patch.",
+    "shell-version": ["45", "46", "47", "48"],
+    "url": "https://github.com/bogamie/zmk-split-battery-tray",
+    "version-name": "0.1.0"
+}
