@@ -16,6 +16,17 @@ this project ships **two pieces** that work together:
 [zmk]: https://zmk.dev
 [zmk-config]: https://zmk.dev/docs/user-setup
 
+## Screenshots
+
+Stacked panel indicator (auto-hides when the dongle is unplugged):
+
+![panel](docs/imgs/panel.png)
+
+Click for a per-side breakdown with battery icons; the section header
+reflects the device's USB iProduct name:
+
+![menu](docs/imgs/menu.png)
+
 ## Compatibility
 
 | Layer       | Compatibility                                                                                       |
@@ -138,8 +149,11 @@ and enables it. Reload GNOME Shell:
 ├── firmware/                       — files to drop into your zmk-config
 │   ├── battery_hid.c
 │   └── CMakeLists.txt
-└── udev/
-    └── 99-zmk-split-battery.rules
+├── udev/
+│   └── 99-zmk-split-battery.rules
+└── docs/                           — screenshots
+    ├── panel.png
+    └── menu.png
 ```
 
 ## Customization
